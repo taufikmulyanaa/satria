@@ -1,12 +1,12 @@
 <?php
 /**
- * Download Excel Template
- * File: download_template.php
+ * Download Excel Template - English Version
+ * File: download_template_en.php
  */
 
 // Set headers for CSV download
 header('Content-Type: text/csv; charset=utf-8');
-header('Content-Disposition: attachment; filename=template_karyawan.csv');
+header('Content-Disposition: attachment; filename=employee_template.csv');
 header('Cache-Control: no-cache, must-revalidate');
 header('Expires: Sat, 26 Jul 1997 05:00:00 GMT');
 
@@ -16,13 +16,13 @@ $output = fopen('php://output', 'w');
 // Add BOM for proper UTF-8 encoding in Excel
 fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 
-// CSV Headers
+// CSV Headers (English)
 $headers = [
-    'Nama',
+    'Name',
     'Division', 
-    'Status Headcount',
-    'Replace',
-    'assign month'
+    'Headcount Status',
+    'Replacing',
+    'Assignment Date'
 ];
 
 fputcsv($output, $headers);

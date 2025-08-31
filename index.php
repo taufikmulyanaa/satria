@@ -1,158 +1,3 @@
-<?php
-/**
- * Enhanced Main Dashboard with DataTables and Export Features
- * File: index.php
- */
-
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
-
-try {
-    // Check required files
-    if (!file_exists('models/Employee.php')) {
-        throw new Exception('Employee model file not found. Please check your installation.');
-    }
-
-    if (!file_exists('config/database.php')) {
-        throw new Exception('Database configuration file not found. Please check your installation.');
-    }
-
-    require_once 'models/Employee.php';
-
-    $employee = new Employee();
-
-    // Handle AJAX requests for DataTables
-    if (isset($_GET['ajax']) && $_GET['ajax'] === 'true') {
-        header('Content-Type: application/json');
-        
-        // Get filters
-        $filters = [];
-        if (isset($_GET['division']) && !empty($_GET['division'])) {
-            $filters['division'] = $_GET['division'];
-        }
-        if (isset($_GET['status']) && !empty($_GET['status'])) {
-            $filters['status'] = $_GET['status'];
-        }
-        if (isset($_GET['month']) && !empty($_GET['month'])) {
-            $filters['month'] = $_GET['month'];
-        }
-        if (isset($_GET['search']['value']) && !empty($_GET['search']['value'])) {
-            $filters['search'] = $_GET['search']['value'];
-        }
-
-        // Get data
-        $employees = $employee->getAllEmployees($filters);
-        
-        // Format data for DataTables
-        $data = [];
-        foreach ($employees as $index => $emp) {
-            $statusColors = [
-                'Replacement' => 'bg-yellow-100 text-yellow-800',
-                'New Headcount' => 'bg-green-100 text-green-800',
-                'New Request' => 'bg-purple-100 text-purple-800'
-            ];
-            $colorClass = $statusColors[$emp['status_headcount']] ?? 'bg-gray-100 text-gray-800';
-            
-            $data[] = [
-                $index + 1,
-                htmlspecialchars($emp['nama']),
-                htmlspecialchars($emp['division']),
-                '<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ' . $colorClass . '">' . 
-                htmlspecialchars($emp['status_headcount']) . '</span>',
-                $emp['replace_person'] ? htmlspecialchars($emp['replace_person']) : '-',
-                date('d/m/Y', strtotime($emp['assign_month'])),
-                '<div class="flex items-center gap-2">
-                    <a href="edit_employee.php?id=' . $emp['id'] . '" 
-                       class="action-btn inline-flex items-center justify-center w-8 h-8 text-blue-600 hover:text-white hover:bg-blue-600 rounded-lg border border-blue-200 hover:border-blue-600 transition-all duration-200"
-                       title="Edit Karyawan">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                        </svg>
-                    </a>
-                    <a href="delete_employee.php?id=' . $emp['id'] . '" 
-                       class="action-btn inline-flex items-center justify-center w-8 h-8 text-red-600 hover:text-white hover:bg-red-600 rounded-lg border border-red-200 hover:border-red-600 transition-all duration-200"
-                       onclick="return confirm(\'Yakin ingin menghapus karyawan ini?\')"
-                       title="Hapus Karyawan">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                    </a>
-                </div>'
-            ];
-        }
-
-        echo json_encode([
-            'draw' => intval($_GET['draw'] ?? 1),
-            'recordsTotal' => count($employees),
-            'recordsFiltered' => count($employees),
-            'data' => $data
-        ]);
-        exit;
-    }
-
-    // Handle export requests
-    if (isset($_GET['export']) && $_GET['export'] === 'xlsx') {
-        // Get filters for export
-        $filters = [];
-        if (isset($_GET['division']) && !empty($_GET['division'])) {
-            $filters['division'] = $_GET['division'];
-        }
-        if (isset($_GET['status']) && !empty($_GET['status'])) {
-            $filters['status'] = $_GET['status'];
-        }
-        if (isset($_GET['month']) && !empty($_GET['month'])) {
-            $filters['month'] = $_GET['month'];
-        }
-        if (isset($_GET['search']) && !empty($_GET['search'])) {
-            $filters['search'] = $_GET['search'];
-        }
-
-        $employees = $employee->getAllEmployees($filters);
-        
-        // Set headers for CSV download (XLSX alternative)
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=data_karyawan_' . date('Y-m-d_H-i-s') . '.csv');
-        header('Cache-Control: no-cache, must-revalidate');
-        
-        // Create output
-        $output = fopen('php://output', 'w');
-        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
-        
-        // Headers
-        $headers = ['No', 'Nama', 'Divisi', 'Status', 'Menggantikan', 'Tanggal Assignment'];
-        fputcsv($output, $headers);
-        
-        // Data
-        foreach ($employees as $index => $emp) {
-            $row = [
-                $index + 1,
-                $emp['nama'],
-                $emp['division'],
-                $emp['status_headcount'],
-                $emp['replace_person'] ?? '-',
-                date('d/m/Y', strtotime($emp['assign_month']))
-            ];
-            fputcsv($output, $row);
-        }
-        
-        fclose($output);
-        exit;
-    }
-
-    // Get data for initial page load
-    $divisions = $employee->getDivisions();
-    $statistics = $employee->getStatistics();
-    $statusOptions = ['Replacement', 'New Headcount', 'New Request'];
-
-} catch (Exception $e) {
-    error_log("Dashboard Error: " . $e->getMessage());
-    include 'error_page.php';
-    exit;
-}
-?>
-
 <!DOCTYPE html>
 <html lang="id" class="h-full">
 <head>
@@ -202,6 +47,47 @@ try {
             background: #94a3b8;
         }
 
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+        
+        @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes modalSlideIn {
+            from { 
+                opacity: 0;
+                transform: translateY(-20px) scale(0.9);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        .modal-content {
+            animation: modalSlideIn 0.3s ease-out;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
         /* DataTables custom styling */
         .dataTables_wrapper {
             font-family: 'Inter', sans-serif;
@@ -247,14 +133,14 @@ try {
         }
         
         .dt-buttons {
-            display: none !important; /* Hide default DataTables buttons */
+            display: none !important;
         }
         
         .dataTables_filter {
-            display: none !important; /* Hide default DataTables search */
+            display: none !important;
         }
         
-        /* Custom Export Dropdown Styles */
+        /* Export Dropdown Styles */
         .export-dropdown {
             position: relative;
             display: inline-block;
@@ -429,7 +315,26 @@ try {
                                 </svg>
                                 <div>
                                     <div class="font-medium">Export Excel</div>
-                                    <div class="text-xs text-gray-500">Unduh sebagai file .csv</div>
+                                    <div class="text-xs text-gray-500">Download as .xlsx file</div>
+                                </div>
+                            </div>
+                            <div class="export-option" onclick="exportData('csv')">
+                                <svg class="text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                                    <circle cx="12" cy="14" r="2" fill="white"/>
+                                </svg>
+                                <div>
+                                    <div class="font-medium">Export CSV</div>
+                                    <div class="text-xs text-gray-500">Download as .csv file</div>
+                                </div>
+                            </div>
+                            <div class="export-option" onclick="exportData('json')">
+                                <svg class="text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M5,3H7V5H5V10A2,2 0 0,1 3,12A2,2 0 0,1 5,14V19H7V21H5C3.93,20.73 3,20.1 3,19V15A2,2 0 0,0 1,13H0V11H1A2,2 0 0,0 3,9V5C3,3.9 3.9,3 5,3M19,3A2,2 0 0,1 21,5V9A2,2 0 0,0 23,11H24V13H23A2,2 0 0,0 21,15V19A2,2 0 0,1 19,21H17V19H19V14A2,2 0 0,1 21,12A2,2 0 0,1 19,10V5H17V3H19Z"/>
+                                </svg>
+                                <div>
+                                    <div class="font-medium">Export JSON</div>
+                                    <div class="text-xs text-gray-500">Download as .json file</div>
                                 </div>
                             </div>
                             <div class="export-option" onclick="exportData('pdf')">
@@ -438,7 +343,7 @@ try {
                                 </svg>
                                 <div>
                                     <div class="font-medium">Export PDF</div>
-                                    <div class="text-xs text-gray-500">Unduh sebagai file PDF</div>
+                                    <div class="text-xs text-gray-500">Download as PDF file</div>
                                 </div>
                             </div>
                             <div class="export-option" onclick="printData()">
@@ -447,18 +352,18 @@ try {
                                 </svg>
                                 <div>
                                     <div class="font-medium">Print</div>
-                                    <div class="text-xs text-gray-500">Cetak data langsung</div>
+                                    <div class="text-xs text-gray-500">Print data directly</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
-                    <a href="add_employee.php" class="px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary/90 transition-colors">
+                    <button onclick="openAddEmployeeModal()" class="px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg flex items-center gap-2 hover:bg-primary/90 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                         </svg>
-                        Tambah Karyawan
-                    </a>
+                        Add Employee
+                    </button>
                     <a href="import.php" class="px-4 py-2 text-sm font-medium border border-border rounded-lg flex items-center gap-2 hover:bg-accent transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
@@ -471,31 +376,29 @@ try {
 
         <main class="max-w-6xl mx-auto p-6 space-y-6">
             <!-- Success Message -->
-            <?php if (isset($_GET['success']) && $_GET['success'] == '1' && isset($_GET['message'])): ?>
-                <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg animate-fadeIn" id="success-alert">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center">
-                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                            </svg>
-                            <span><?= htmlspecialchars($_GET['message']) ?></span>
-                        </div>
-                        <button onclick="closeSuccessAlert()" class="text-green-600 hover:text-green-800 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
+            <div id="success-notification" class="hidden bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg animate-fadeIn">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span id="success-message"></span>
                     </div>
+                    <button onclick="closeSuccessAlert()" class="text-green-600 hover:text-green-800 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
                 </div>
-            <?php endif; ?>
+            </div>
 
             <!-- Statistics Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="bg-card p-5 rounded-xl border border-border">
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
-                            <p class="text-sm text-muted-foreground">Total Karyawan</p>
-                            <p class="text-2xl font-bold mt-2"><?= number_format($statistics['total']) ?></p>
+                            <p class="text-sm text-muted-foreground">Total Employees</p>
+                            <p class="text-2xl font-bold mt-2" id="stat-total">0</p>
                         </div>
                         <div class="w-8 h-8 bg-blue-500/10 rounded-full flex items-center justify-center">
                             <svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
@@ -509,7 +412,7 @@ try {
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
                             <p class="text-sm text-muted-foreground">Replacement</p>
-                            <p class="text-2xl font-bold mt-2 text-yellow-500"><?= $statistics['by_status']['Replacement'] ?? 0 ?></p>
+                            <p class="text-2xl font-bold mt-2 text-yellow-500" id="stat-replacement">0</p>
                         </div>
                         <div class="w-8 h-8 bg-yellow-500/10 rounded-full flex items-center justify-center">
                             <svg class="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
@@ -524,7 +427,7 @@ try {
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
                             <p class="text-sm text-muted-foreground">New Headcount</p>
-                            <p class="text-2xl font-bold mt-2 text-green-500"><?= $statistics['by_status']['New Headcount'] ?? 0 ?></p>
+                            <p class="text-2xl font-bold mt-2 text-green-500" id="stat-new-headcount">0</p>
                         </div>
                         <div class="w-8 h-8 bg-green-500/10 rounded-full flex items-center justify-center">
                             <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
@@ -538,7 +441,7 @@ try {
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
                             <p class="text-sm text-muted-foreground">New Request</p>
-                            <p class="text-2xl font-bold mt-2 text-purple-500"><?= $statistics['by_status']['New Request'] ?? 0 ?></p>
+                            <p class="text-2xl font-bold mt-2 text-purple-500" id="stat-new-request">0</p>
                         </div>
                         <div class="w-8 h-8 bg-purple-500/10 rounded-full flex items-center justify-center">
                             <svg class="w-4 h-4 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
@@ -554,40 +457,37 @@ try {
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-medium text-foreground">Filter Data</h3>
                     <button onclick="resetFilters()" class="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                        Reset Semua Filter
+                        Reset All Filters
                     </button>
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-foreground mb-2">Divisi</label>
+                        <label class="block text-sm font-medium text-foreground mb-2">Division</label>
                         <select id="filter-division" class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background">
-                            <option value="">Semua Divisi</option>
-                            <?php foreach ($divisions as $div): ?>
-                                <option value="<?= htmlspecialchars($div) ?>"><?= htmlspecialchars($div) ?></option>
-                            <?php endforeach; ?>
+                            <option value="">All Divisions</option>
                         </select>
                     </div>
                     
                     <div>
                         <label class="block text-sm font-medium text-foreground mb-2">Status</label>
                         <select id="filter-status" class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background">
-                            <option value="">Semua Status</option>
-                            <?php foreach ($statusOptions as $status): ?>
-                                <option value="<?= $status ?>"><?= $status ?></option>
-                            <?php endforeach; ?>
+                            <option value="">All Status</option>
+                            <option value="Replacement">Replacement</option>
+                            <option value="New Headcount">New Headcount</option>
+                            <option value="New Request">New Request</option>
                         </select>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-foreground mb-2">Bulan Assignment</label>
+                        <label class="block text-sm font-medium text-foreground mb-2">Assignment Month</label>
                         <input type="month" id="filter-month" class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background">
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-foreground mb-2">Pencarian</label>
+                        <label class="block text-sm font-medium text-foreground mb-2">Search</label>
                         <div class="relative">
-                            <input type="text" id="datatable-search" placeholder="Cari data..." class="w-full border border-border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background">
+                            <input type="text" id="datatable-search" placeholder="Search data..." class="w-full border border-border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background">
                             <svg class="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                             </svg>
@@ -601,8 +501,8 @@ try {
                 <div class="px-6 py-4 border-b border-border">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-lg font-medium text-foreground">Data Karyawan</h3>
-                            <p class="text-sm text-muted-foreground mt-1">Kelola data karyawan dengan mudah</p>
+                            <h3 class="text-lg font-medium text-foreground">Employee Data</h3>
+                            <p class="text-sm text-muted-foreground mt-1">Manage employee data easily</p>
                         </div>
                     </div>
                 </div>
@@ -612,12 +512,12 @@ try {
                         <thead>
                             <tr>
                                 <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">No</th>
-                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Nama</th>
-                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Divisi</th>
+                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
+                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Division</th>
                                 <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Menggantikan</th>
-                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Tanggal</th>
-                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Aksi</th>
+                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Replacing</th>
+                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
+                                <th class="text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -629,42 +529,344 @@ try {
         </main>
     </div>
 
+    <!-- Add Employee Modal -->
+    <div id="add-employee-modal" class="modal">
+        <div class="modal-content bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4">
+            <div class="px-6 py-4 border-b border-gray-200 rounded-t-xl">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                        <h2 class="text-lg font-medium text-foreground">Add New Employee</h2>
+                    </div>
+                    <button onclick="closeModal('add-employee-modal')" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <p class="text-sm text-muted-foreground mt-1">Complete employee information to be added</p>
+            </div>
+            
+            <form id="add-employee-form" class="p-6 space-y-6">
+                <div>
+                    <label for="add-nama" class="block text-sm font-medium text-foreground mb-2">
+                        Full Name <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="add-nama" 
+                        name="nama" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                        placeholder="Enter employee full name"
+                        required
+                    >
+                </div>
+
+                <div>
+                    <label for="add-division" class="block text-sm font-medium text-foreground mb-2">
+                        Division <span class="text-red-500">*</span>
+                    </label>
+                    <select 
+                        id="add-division" 
+                        name="division" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+                        required
+                    >
+                        <option value="">Select Division</option>
+                        <option value="other">Other Division...</option>
+                    </select>
+                </div>
+
+                <div id="add-custom-division" class="hidden">
+                    <label for="add-custom-division-input" class="block text-sm font-medium text-foreground mb-2">
+                        New Division Name
+                    </label>
+                    <input 
+                        type="text" 
+                        id="add-custom-division-input" 
+                        name="custom_division" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                        placeholder="Enter new division name"
+                    >
+                </div>
+
+                <div>
+                    <label for="add-status" class="block text-sm font-medium text-foreground mb-2">
+                        Headcount Status <span class="text-red-500">*</span>
+                    </label>
+                    <select 
+                        id="add-status" 
+                        name="status_headcount" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+                        required
+                    >
+                        <option value="">Select Status</option>
+                        <option value="Replacement">Replacement</option>
+                        <option value="New Headcount">New Headcount</option>
+                        <option value="New Request">New Request</option>
+                    </select>
+                </div>
+
+                <div id="add-replace-person-field" class="hidden">
+                    <label for="add-replace-person" class="block text-sm font-medium text-foreground mb-2">
+                        Replacing
+                    </label>
+                    <input 
+                        type="text" 
+                        id="add-replace-person" 
+                        name="replace_person" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                        placeholder="Name of person being replaced"
+                    >
+                </div>
+
+                <div>
+                    <label for="add-assign-month" class="block text-sm font-medium text-foreground mb-2">
+                        Assignment Date <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="date" 
+                        id="add-assign-month" 
+                        name="assign_month" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                        required
+                    >
+                </div>
+
+                <div class="flex justify-end space-x-4 pt-6 border-t border-border">
+                    <button type="button" onclick="closeModal('add-employee-modal')" class="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            </svg>
+                            Add Employee
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Employee Modal -->
+    <div id="edit-employee-modal" class="modal">
+        <div class="modal-content bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4">
+            <div class="px-6 py-4 border-b border-gray-200 rounded-t-xl">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                        <h2 class="text-lg font-medium text-foreground">Edit Employee</h2>
+                    </div>
+                    <button onclick="closeModal('edit-employee-modal')" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <p class="text-sm text-muted-foreground mt-1">Edit employee information</p>
+            </div>
+            
+            <form id="edit-employee-form" class="p-6 space-y-6">
+                <input type="hidden" id="edit-id" name="id">
+                
+                <div>
+                    <label for="edit-nama" class="block text-sm font-medium text-foreground mb-2">
+                        Full Name <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="edit-nama" 
+                        name="nama" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                        placeholder="Enter employee full name"
+                        required
+                    >
+                </div>
+
+                <div>
+                    <label for="edit-division" class="block text-sm font-medium text-foreground mb-2">
+                        Division <span class="text-red-500">*</span>
+                    </label>
+                    <select 
+                        id="edit-division" 
+                        name="division" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+                        required
+                    >
+                        <option value="">Select Division</option>
+                        <option value="other">Other Division...</option>
+                    </select>
+                </div>
+
+                <div id="edit-custom-division" class="hidden">
+                    <label for="edit-custom-division-input" class="block text-sm font-medium text-foreground mb-2">
+                        New Division Name
+                    </label>
+                    <input 
+                        type="text" 
+                        id="edit-custom-division-input" 
+                        name="custom_division" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                        placeholder="Enter new division name"
+                    >
+                </div>
+
+                <div>
+                    <label for="edit-status" class="block text-sm font-medium text-foreground mb-2">
+                        Headcount Status <span class="text-red-500">*</span>
+                    </label>
+                    <select 
+                        id="edit-status" 
+                        name="status_headcount" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+                        required
+                    >
+                        <option value="">Select Status</option>
+                        <option value="Replacement">Replacement</option>
+                        <option value="New Headcount">New Headcount</option>
+                        <option value="New Request">New Request</option>
+                    </select>
+                </div>
+
+                <div id="edit-replace-person-field" class="hidden">
+                    <label for="edit-replace-person" class="block text-sm font-medium text-foreground mb-2">
+                        Replacing
+                    </label>
+                    <input 
+                        type="text" 
+                        id="edit-replace-person" 
+                        name="replace_person" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                        placeholder="Name of person being replaced"
+                    >
+                </div>
+
+                <div>
+                    <label for="edit-assign-month" class="block text-sm font-medium text-foreground mb-2">
+                        Assignment Date <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="date" 
+                        id="edit-assign-month" 
+                        name="assign_month" 
+                        class="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-background"
+                        required
+                    >
+                </div>
+
+                <div class="flex justify-end space-x-4 pt-6 border-t border-border">
+                    <button type="button" onclick="closeModal('edit-employee-modal')" class="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-accent transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                            </svg>
+                            Update Employee
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let employeesTable;
+        let divisions = [];
+        let statistics = {};
         
         $(document).ready(function() {
+            // Load initial data
+            loadStatistics();
+            loadDivisions();
+            
             // Initialize DataTable
             employeesTable = $('#employees-table').DataTable({
                 processing: true,
                 serverSide: false,
-                searching: true, // Enable searching but hide the default search box
+                searching: true,
                 ajax: {
-                    url: '?ajax=true',
+                    url: 'api/employees.php',
+                    type: 'GET',
                     data: function(d) {
                         d.division = $('#filter-division').val();
                         d.status = $('#filter-status').val();
                         d.month = $('#filter-month').val();
-                        // Don't pass global search here as DataTables handles it
+                    },
+                    error: function(xhr, error, code) {
+                        console.error('DataTable AJAX Error:', error);
+                        console.error('Status:', xhr.status);
+                        console.error('Response:', xhr.responseText);
+                        showErrorMessage('Failed to load data: ' + error);
+                    },
+                    dataSrc: function(json) {
+                        console.log('API Response:', json);
+                        if (json.success && json.data) {
+                            return json.data.map((emp, index) => {
+                                const statusColors = {
+                                    'Replacement': 'bg-yellow-100 text-yellow-800',
+                                    'New Headcount': 'bg-green-100 text-green-800',
+                                    'New Request': 'bg-purple-100 text-purple-800'
+                                };
+                                const colorClass = statusColors[emp.status_headcount] || 'bg-gray-100 text-gray-800';
+                                
+                                return [
+                                    index + 1,
+                                    emp.nama,
+                                    emp.division,
+                                    `<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClass}">${emp.status_headcount}</span>`,
+                                    emp.replace_person || '-',
+                                    new Date(emp.assign_month).toLocaleDateString('id-ID'),
+                                    `<div class="flex items-center gap-2">
+                                        <button onclick="openEditEmployeeModal(${emp.id})" 
+                                                class="action-btn inline-flex items-center justify-center w-8 h-8 text-blue-600 hover:text-white hover:bg-blue-600 rounded-lg border border-blue-200 hover:border-blue-600 transition-all duration-200"
+                                                title="Edit Karyawan">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            </svg>
+                                        </button>
+                                        <button onclick="deleteEmployee(${emp.id}, '${emp.nama}')" 
+                                                class="action-btn inline-flex items-center justify-center w-8 h-8 text-red-600 hover:text-white hover:bg-red-600 rounded-lg border border-red-200 hover:border-red-600 transition-all duration-200"
+                                                title="Hapus Karyawan">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                            </svg>
+                                        </button>
+                                    </div>`
+                                ];
+                            });
+                        } else {
+                            console.error('API Error:', json);
+                            showErrorMessage(json.message || 'Failed to load data');
+                            return [];
+                        }
                     }
                 },
                 columns: [
-                    { data: 0, orderable: false, width: '60px' },
-                    { data: 1, name: 'nama' },
-                    { data: 2, name: 'division' },
-                    { data: 3, name: 'status', orderable: false, width: '120px' },
-                    { data: 4, name: 'replace_person', orderable: false },
-                    { data: 5, name: 'assign_month', width: '100px' },
-                    { data: 6, name: 'actions', orderable: false, width: '90px' }
+                    { orderable: false, width: '60px' },
+                    { name: 'nama' },
+                    { name: 'division' },
+                    { name: 'status', orderable: false, width: '120px' },
+                    { name: 'replace_person', orderable: false },
+                    { name: 'assign_month', width: '100px' },
+                    { name: 'actions', orderable: false, width: '90px' }
                 ],
-                dom: 'Blrtip', // Keep buttons but hide them with CSS, hide default search (f)
+                dom: 'Blrtip',
                 buttons: [
                     {
                         extend: 'pdf',
-                        title: 'Data Karyawan - Satria HR System',
+                        title: 'Employee Data - Satria HR System',
                         orientation: 'landscape',
                         pageSize: 'A4',
                         exportOptions: {
-                            columns: [0, 1, 2, 3, 4, 5] // Exclude actions column
+                            columns: [0, 1, 2, 3, 4, 5]
                         },
                         customize: function(doc) {
                             // Customize PDF styling
@@ -677,7 +879,7 @@ try {
                             
                             // Add date
                             doc.content.splice(1, 0, {
-                                text: 'Dicetak pada: ' + new Date().toLocaleDateString('id-ID') + ' pukul ' + new Date().toLocaleTimeString('id-ID'),
+                                text: 'Printed on: ' + new Date().toLocaleDateString('en-US') + ' at ' + new Date().toLocaleTimeString('en-US'),
                                 style: { fontSize: 10, alignment: 'center' },
                                 margin: [0, 0, 0, 10]
                             });
@@ -685,27 +887,24 @@ try {
                     }
                 ],
                 pageLength: 25,
-                lengthMenu: [ [10, 25, 50, 100, -1], [10, 25, 50, 100, "Semua"] ],
+                lengthMenu: [ [10, 25, 50, 100, -1], [10, 25, 50, 100, "All"] ],
                 language: {
-                    processing: "Memproses...",
-                    search: "", // Hide default search label
+                    processing: "Processing...",
+                    search: "",
                     searchPlaceholder: "",
-                    lengthMenu: "Tampilkan _MENU_ data per halaman",
-                    info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
-                    infoEmpty: "Menampilkan 0 sampai 0 dari 0 data",
-                    infoFiltered: "(disaring dari _MAX_ total data)",
-                    loadingRecords: "Memuat...",
-                    zeroRecords: "Tidak ada data yang cocok",
-                    emptyTable: "Tidak ada data tersedia",
+                    lengthMenu: "Show _MENU_ entries per page",
+                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                    infoEmpty: "Showing 0 to 0 of 0 entries",
+                    infoFiltered: "(filtered from _MAX_ total entries)",
+                    loadingRecords: "Loading...",
+                    zeroRecords: "No matching records found",
+                    emptyTable: "No data available",
                     paginate: {
-                        first: "Pertama",
-                        previous: "Sebelumnya", 
-                        next: "Selanjutnya",
-                        last: "Terakhir"
+                        first: "First",
+                        previous: "Previous", 
+                        next: "Next",
+                        last: "Last"
                     }
-                },
-                drawCallback: function(settings) {
-                    // DataTable callback after draw
                 },
                 createdRow: function(row, data, dataIndex) {
                     $(row).addClass('hover:bg-muted/50 transition-colors');
@@ -718,20 +917,390 @@ try {
                 employeesTable.ajax.reload();
             });
 
-            // DataTable search (moved to filter card)
+            // DataTable search
             $('#datatable-search').on('keyup', function() {
                 employeesTable.search(this.value).draw();
             });
+
+            // Form handlers
+            setupFormHandlers();
+            
+            // Set default date
+            const today = new Date().toISOString().split('T')[0];
+            $('#add-assign-month').val(today);
         });
 
-        // Export function
+        // Load statistics
+        function loadStatistics() {
+            $.get('api/employees.php?stats=true')
+                .done(function(response) {
+                    console.log('Statistics response:', response);
+                    if (response.success) {
+                        statistics = response.data;
+                        $('#stat-total').text(statistics.total || 0);
+                        $('#stat-replacement').text(statistics.by_status?.Replacement || 0);
+                        $('#stat-new-headcount').text(statistics.by_status?.['New Headcount'] || 0);
+                        $('#stat-new-request').text(statistics.by_status?.['New Request'] || 0);
+                    } else {
+                        console.error('Statistics error:', response);
+                    }
+                })
+                .fail(function(xhr, status, error) {
+                    console.error('Statistics AJAX Error:', error);
+                    console.error('Response:', xhr.responseText);
+                });
+        }
+
+        // Load divisions
+        function loadDivisions() {
+            $.get('api/employees.php')
+                .done(function(response) {
+                    console.log('Divisions response:', response);
+                    if (response.success && response.data) {
+                        const uniqueDivisions = [...new Set(response.data.map(emp => emp.division))].sort();
+                        divisions = uniqueDivisions;
+                        
+                        // Update filter dropdown
+                        const filterSelect = $('#filter-division');
+                        filterSelect.find('option:not(:first)').remove();
+                        uniqueDivisions.forEach(div => {
+                            filterSelect.append(`<option value="${div}">${div}</option>`);
+                        });
+                        
+                        // Update modal dropdowns
+                        updateModalDivisions();
+                    } else {
+                        console.error('Divisions error:', response);
+                    }
+                })
+                .fail(function(xhr, status, error) {
+                    console.error('Divisions AJAX Error:', error);
+                    console.error('Response:', xhr.responseText);
+                });
+        }
+
+        // Update modal division dropdowns
+        function updateModalDivisions() {
+            const addSelect = $('#add-division');
+            const editSelect = $('#edit-division');
+            
+            [addSelect, editSelect].forEach(select => {
+                select.find('option:not(:first):not([value="other"])').remove();
+                divisions.forEach(div => {
+                    select.find('[value="other"]').before(`<option value="${div}">${div}</option>`);
+                });
+            });
+        }
+
+        // Setup form handlers
+        function setupFormHandlers() {
+            // Add form division change
+            $('#add-division').on('change', function() {
+                const customDiv = $('#add-custom-division');
+                const customInput = $('#add-custom-division-input');
+                
+                if (this.value === 'other') {
+                    customDiv.removeClass('hidden');
+                    customInput.prop('required', true);
+                } else {
+                    customDiv.addClass('hidden');
+                    customInput.prop('required', false);
+                    customInput.val('');
+                }
+            });
+
+            // Add form status change
+            $('#add-status').on('change', function() {
+                const replaceField = $('#add-replace-person-field');
+                const replaceInput = $('#add-replace-person');
+                
+                if (this.value === 'Replacement') {
+                    replaceField.removeClass('hidden');
+                    replaceInput.prop('required', true);
+                } else {
+                    replaceField.addClass('hidden');
+                    replaceInput.prop('required', false);
+                    replaceInput.val('');
+                }
+            });
+
+            // Edit form division change
+            $('#edit-division').on('change', function() {
+                const customDiv = $('#edit-custom-division');
+                const customInput = $('#edit-custom-division-input');
+                
+                if (this.value === 'other') {
+                    customDiv.removeClass('hidden');
+                    customInput.prop('required', true);
+                } else {
+                    customDiv.addClass('hidden');
+                    customInput.prop('required', false);
+                    customInput.val('');
+                }
+            });
+
+            // Edit form status change
+            $('#edit-status').on('change', function() {
+                const replaceField = $('#edit-replace-person-field');
+                const replaceInput = $('#edit-replace-person');
+                
+                if (this.value === 'Replacement') {
+                    replaceField.removeClass('hidden');
+                    replaceInput.prop('required', true);
+                } else {
+                    replaceField.addClass('hidden');
+                    replaceInput.prop('required', false);
+                    replaceInput.val('');
+                }
+            });
+
+            // Add form submit
+            $('#add-employee-form').on('submit', function(e) {
+                e.preventDefault();
+                submitAddEmployee();
+            });
+
+            // Edit form submit
+            $('#edit-employee-form').on('submit', function(e) {
+                e.preventDefault();
+                submitEditEmployee();
+            });
+        }
+
+        // Open add employee modal
+        function openAddEmployeeModal() {
+            // Reset form
+            $('#add-employee-form')[0].reset();
+            $('#add-custom-division').addClass('hidden');
+            $('#add-replace-person-field').addClass('hidden');
+            
+            // Set default date
+            const today = new Date().toISOString().split('T')[0];
+            $('#add-assign-month').val(today);
+            
+            // Show modal
+            $('#add-employee-modal').addClass('show');
+            
+            // Focus first input
+            setTimeout(() => {
+                $('#add-nama').focus();
+            }, 300);
+        }
+
+        // Open edit employee modal
+        function openEditEmployeeModal(id) {
+            // Fetch employee data
+            $.get(`api/employees.php?id=${id}`)
+                .done(function(response) {
+                    console.log('Edit employee response:', response);
+                    if (response.success && response.data) {
+                        const emp = response.data;
+                        
+                        // Fill form
+                        $('#edit-id').val(emp.id);
+                        $('#edit-nama').val(emp.nama);
+                        $('#edit-division').val(emp.division);
+                        $('#edit-status').val(emp.status_headcount);
+                        $('#edit-replace-person').val(emp.replace_person || '');
+                        $('#edit-assign-month').val(emp.assign_month);
+                        
+                        // Show/hide conditional fields
+                        if (emp.status_headcount === 'Replacement') {
+                            $('#edit-replace-person-field').removeClass('hidden');
+                            $('#edit-replace-person').prop('required', true);
+                        }
+                        
+                        // Show modal
+                        $('#edit-employee-modal').addClass('show');
+                        
+                        // Focus first input
+                        setTimeout(() => {
+                            $('#edit-nama').focus();
+                        }, 300);
+                    } else {
+                        showErrorMessage(response.message || 'Failed to load employee data');
+                    }
+                })
+                .fail(function(xhr, status, error) {
+                    console.error('Edit employee AJAX Error:', error);
+                    console.error('Response:', xhr.responseText);
+                    showErrorMessage('Failed to load employee data: ' + error);
+                });
+        }
+
+        // Close modal
+        function closeModal(modalId) {
+            $('#' + modalId).removeClass('show');
+        }
+
+        // Submit add employee
+        function submitAddEmployee() {
+            const formData = new FormData($('#add-employee-form')[0]);
+            
+            // Handle custom division
+            if (formData.get('division') === 'other' && formData.get('custom_division')) {
+                formData.set('division', formData.get('custom_division'));
+            }
+            
+            $.ajax({
+                url: 'api/employee_handler.php',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    console.log('Add employee response:', response);
+                    if (response.success) {
+                        closeModal('add-employee-modal');
+                        showSuccessMessage('Employee added successfully!');
+                        refreshAllData();
+                    } else {
+                        showErrorMessage(response.message || 'Failed to add employee');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Add employee AJAX Error:', error);
+                    console.error('Response:', xhr.responseText);
+                    showErrorMessage('An error occurred while adding employee: ' + error);
+                }
+            });
+        }
+
+        // Submit edit employee
+        function submitEditEmployee() {
+            const formData = new FormData($('#edit-employee-form')[0]);
+            formData.append('action', 'update');
+            
+            // Handle custom division
+            if (formData.get('division') === 'other' && formData.get('custom_division')) {
+                formData.set('division', formData.get('custom_division'));
+            }
+            
+            $.ajax({
+                url: 'api/employee_handler.php',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    console.log('Edit employee response:', response);
+                    if (response.success) {
+                        closeModal('edit-employee-modal');
+                        showSuccessMessage('Employee data updated successfully!');
+                        refreshAllData();
+                    } else {
+                        showErrorMessage(response.message || 'Failed to update employee');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Edit employee AJAX Error:', error);
+                    console.error('Response:', xhr.responseText);
+                    showErrorMessage('An error occurred while updating employee: ' + error);
+                }
+            });
+        }
+
+        // Delete employee
+        function deleteEmployee(id, nama) {
+            if (confirm(`Are you sure you want to delete employee "${nama}"? This action cannot be undone.`)) {
+                $.ajax({
+                    url: 'api/employee_handler.php',
+                    type: 'POST',
+                    data: {
+                        action: 'delete',
+                        id: id
+                    },
+                    success: function(response) {
+                        console.log('Delete employee response:', response);
+                        if (response.success) {
+                            showSuccessMessage(`Employee "${nama}" deleted successfully`);
+                            refreshAllData();
+                        } else {
+                            showErrorMessage(response.message || 'Failed to delete employee');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Delete employee AJAX Error:', error);
+                        console.error('Response:', xhr.responseText);
+                        showErrorMessage('An error occurred while deleting employee: ' + error);
+                    }
+                });
+            }
+        }
+
+        // Show success message
+        function showSuccessMessage(message) {
+            $('#success-message').text(message);
+            $('#success-notification').removeClass('hidden');
+            
+            // Auto hide after 5 seconds
+            setTimeout(() => {
+                closeSuccessAlert();
+            }, 5000);
+        }
+
+        // Show error message
+        function showErrorMessage(message) {
+            // Create error notification if it doesn't exist
+            if ($('#error-notification').length === 0) {
+                const errorHtml = `
+                    <div id="error-notification" class="hidden bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg animate-fadeIn">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
+                                </svg>
+                                <span id="error-message"></span>
+                            </div>
+                            <button onclick="closeErrorAlert()" class="text-red-600 hover:text-red-800 transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                $('#success-notification').after(errorHtml);
+            }
+            
+            $('#error-message').text(message);
+            $('#error-notification').removeClass('hidden');
+            
+            // Auto hide after 7 seconds
+            setTimeout(() => {
+                closeErrorAlert();
+            }, 7000);
+        }
+
+        // Close error alert
+        function closeErrorAlert() {
+            $('#error-notification').addClass('animate-slideUp');
+            setTimeout(() => {
+                $('#error-notification').addClass('hidden').removeClass('animate-slideUp');
+            }, 300);
+        }
+
+        // Close success alert
+        function closeSuccessAlert() {
+            $('#success-notification').addClass('animate-slideUp');
+            setTimeout(() => {
+                $('#success-notification').addClass('hidden').removeClass('animate-slideUp');
+            }, 300);
+        }
+
+        // Refresh all data
+        function refreshAllData() {
+            loadStatistics();
+            loadDivisions();
+            employeesTable.ajax.reload(null, false);
+        }
+
+        // Export functions
         function exportData(format) {
-            // Close dropdown after export
             document.getElementById('export-dropdown-menu').classList.remove('show');
             document.getElementById('export-dropdown-arrow').style.transform = 'rotate(0deg)';
             
             if (format === 'pdf') {
-                // Use DataTables built-in PDF export
                 employeesTable.button(0).trigger();
             } else {
                 const params = new URLSearchParams({
@@ -742,26 +1311,22 @@ try {
                     search: $('#datatable-search').val()
                 });
                 
-                window.location.href = '?' + params.toString();
+                window.location.href = 'index.php?' + params.toString();
             }
         }
 
-        // Print function
         function printData() {
-            // Close dropdown
             document.getElementById('export-dropdown-menu').classList.remove('show');
             document.getElementById('export-dropdown-arrow').style.transform = 'rotate(0deg)';
             
-            // Get current filtered data
             const data = employeesTable.rows({ search: 'applied' }).data();
             
-            // Create print window
             const printWindow = window.open('', '_blank');
             const printContent = `
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Data Karyawan - Satria HR System</title>
+                    <title>Employee Data - Satria HR System</title>
                     <style>
                         body { font-family: Arial, sans-serif; margin: 20px; }
                         .header { text-align: center; margin-bottom: 30px; }
@@ -770,9 +1335,6 @@ try {
                         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                         th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 12px; }
                         th { background-color: #f9fafb; font-weight: bold; }
-                        .status-replacement { background-color: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px; }
-                        .status-new-headcount { background-color: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; }
-                        .status-new-request { background-color: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; }
                         @media print {
                             body { margin: 0; }
                             .no-print { display: none; }
@@ -781,21 +1343,21 @@ try {
                 </head>
                 <body>
                     <div class="header">
-                        <h1>Data Karyawan</h1>
+                        <h1>Employee Data</h1>
                         <p>Satria HR System</p>
-                        <p>Dicetak pada: ${new Date().toLocaleDateString('id-ID')} pukul ${new Date().toLocaleTimeString('id-ID')}</p>
-                        <p>Total: ${data.length} karyawan</p>
+                        <p>Printed on: ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US')}</p>
+                        <p>Total: ${data.length} employees</p>
                     </div>
                     
                     <table>
                         <thead>
                             <tr>
                                 <th>No</th>
-                                <th>Nama</th>
-                                <th>Divisi</th>
+                                <th>Name</th>
+                                <th>Division</th>
                                 <th>Status</th>
-                                <th>Menggantikan</th>
-                                <th>Tanggal</th>
+                                <th>Replacing</th>
+                                <th>Date</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -818,14 +1380,12 @@ try {
             printWindow.document.write(printContent);
             printWindow.document.close();
             
-            // Wait for content to load then print
             setTimeout(() => {
                 printWindow.print();
                 printWindow.close();
             }, 500);
         }
 
-        // Toggle export dropdown
         function toggleExportDropdown() {
             const dropdown = document.getElementById('export-dropdown-menu');
             const arrow = document.getElementById('export-dropdown-arrow');
@@ -837,6 +1397,26 @@ try {
                 dropdown.classList.add('show');
                 arrow.style.transform = 'rotate(180deg)';
             }
+        }
+
+        function refreshData() {
+            refreshAllData();
+            
+            const refreshBtn = event.target.closest('button');
+            const icon = refreshBtn.querySelector('svg');
+            icon.classList.add('animate-spin');
+            
+            setTimeout(() => {
+                icon.classList.remove('animate-spin');
+            }, 1000);
+        }
+
+        function resetFilters() {
+            $('#filter-division').val('');
+            $('#filter-status').val(''); 
+            $('#filter-month').val('');
+            $('#datatable-search').val('');
+            employeesTable.search('').ajax.reload();
         }
 
         // Close dropdown when clicking outside
@@ -851,54 +1431,12 @@ try {
             }
         });
 
-        // Close success alert
-        function closeSuccessAlert() {
-            const alert = document.getElementById('success-alert');
-            if (alert) {
-                alert.classList.add('animate-slideUp');
-                setTimeout(() => {
-                    alert.remove();
-                    // Update URL to remove success parameters
-                    const url = new URL(window.location);
-                    url.searchParams.delete('success');
-                    url.searchParams.delete('message');
-                    window.history.replaceState({}, '', url);
-                }, 300);
-            }
-        }
-
-        // Auto-hide success alert after 5 seconds
-        document.addEventListener('DOMContentLoaded', function() {
-            const successAlert = document.getElementById('success-alert');
-            if (successAlert) {
-                setTimeout(() => {
-                    closeSuccessAlert();
-                }, 5000);
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('show');
             }
         });
-
-        // Refresh data
-        function refreshData() {
-            employeesTable.ajax.reload(null, false);
-            
-            // Show refresh animation
-            const refreshBtn = event.target.closest('button');
-            const icon = refreshBtn.querySelector('svg');
-            icon.classList.add('animate-spin');
-            
-            setTimeout(() => {
-                icon.classList.remove('animate-spin');
-            }, 1000);
-        }
-
-        // Reset all filters
-        function resetFilters() {
-            $('#filter-division').val('');
-            $('#filter-status').val(''); 
-            $('#filter-month').val('');
-            $('#datatable-search').val('');
-            employeesTable.search('').ajax.reload();
-        }
     </script>
 </body>
 </html>

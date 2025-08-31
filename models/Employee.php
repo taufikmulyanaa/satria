@@ -1,10 +1,11 @@
 <?php
 /**
- * Employee Model
+ * Employee Model - Fixed Path
  * File: models/Employee.php
  */
 
-require_once 'config/database.php';
+// Fix path issue - use absolute path relative to document root
+require_once dirname(__FILE__) . '/../config/database.php';
 
 class Employee {
     private $db;

@@ -1,80 +1,5 @@
-<?php
-/**
- * Simple Excel Import
- * File: import_simple.php
- * Copy this content to your import.php file
- */
-
-require_once 'models/Employee.php';
-
-$message = '';
-$error = '';
-$importResults = null;
-
-// Handle file upload
-if ($_POST && isset($_FILES['excel_file'])) {
-    $uploadedFile = $_FILES['excel_file'];
-    
-    // Validate file
-    if ($uploadedFile['error'] !== UPLOAD_ERR_OK) {
-        $error = 'Terjadi kesalahan saat upload file';
-    } elseif (empty($uploadedFile['name'])) {
-        $error = 'Silakan pilih file untuk diupload';
-    } else {
-        // Process file (simple CSV processing for demo)
-        try {
-            $employee = new Employee();
-            
-            // Read file as CSV
-            $handle = fopen($uploadedFile['tmp_name'], 'r');
-            if ($handle) {
-                $employeesData = [];
-                $rowNumber = 0;
-                
-                while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-                    $rowNumber++;
-                    
-                    if ($rowNumber === 1) {
-                        // Skip header row
-                        continue;
-                    }
-                    
-                    // Map data based on expected columns
-                    if (count($data) >= 4) {
-                        $employeesData[] = [
-                            'nama' => trim($data[0]),
-                            'division' => trim($data[1]),
-                            'status_headcount' => trim($data[2]),
-                            'replace_person' => !empty(trim($data[3])) ? trim($data[3]) : null,
-                            'assign_month' => isset($data[4]) && !empty($data[4]) ? date('Y-m-d', strtotime(trim($data[4]))) : date('Y-m-d')
-                        ];
-                    }
-                }
-                
-                fclose($handle);
-                
-                if (!empty($employeesData)) {
-                    $importResults = $employee->importEmployees($employeesData);
-                    if ($importResults['success']) {
-                        $message = "Berhasil mengimpor {$importResults['imported']} karyawan";
-                    } else {
-                        $error = "Gagal mengimpor data: " . ($importResults['error'] ?? 'Unknown error');
-                    }
-                } else {
-                    $error = 'Tidak ada data valid dalam file';
-                }
-            } else {
-                $error = 'Tidak dapat membaca file';
-            }
-        } catch (Exception $e) {
-            $error = 'Terjadi kesalahan saat memproses file: ' . $e->getMessage();
-        }
-    }
-}
-?>
-
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -87,98 +12,116 @@ if ($_POST && isset($_FILES['excel_file'])) {
                 extend: {
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
-                    }
+                    },
+                    colors: {
+                        border: 'hsl(214.3, 31.8%, 91.4%)',
+                        input: 'hsl(214.3, 31.8%, 91.4%)',
+                        ring: 'hsl(222.2, 84%, 4.9%)',
+                        background: 'hsl(0, 0%, 100%)',
+                        foreground: 'hsl(222.2, 84%, 4.9%)',
+                        primary: {
+                            DEFAULT: 'hsl(221.2, 83.2%, 53.3%)',
+                            foreground: 'hsl(210, 40%, 98%)',
+                        },
+                        secondary: {
+                            DEFAULT: 'hsl(210, 40%, 96.1%)',
+                            foreground: 'hsl(222.2, 47.4%, 11.2%)',
+                        },
+                        muted: {
+                            DEFAULT: 'hsl(210, 40%, 96.1%)',
+                            foreground: 'hsl(215.4, 16.3%, 46.9%)',
+                        },
+                        accent: {
+                            DEFAULT: 'hsl(210, 40%, 96.1%)',
+                            foreground: 'hsl(222.2, 47.4%, 11.2%)',
+                        },
+                        card: {
+                            DEFAULT: 'hsl(0, 0%, 100%)',
+                            foreground: 'hsl(222.2, 84%, 4.9%)',
+                        },
+                    },
+                    borderRadius: {
+                        lg: `0.5rem`,
+                        md: `calc(0.5rem - 2px)`,
+                        sm: `calc(0.5rem - 4px)`,
+                    },
                 }
             }
         }
     </script>
 </head>
-<body class="bg-gray-50 font-sans antialiased">
+<body class="bg-muted/40 font-sans text-foreground antialiased">
     <div class="min-h-screen">
         <!-- Header -->
-        <header class="bg-white shadow-sm border-b">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center h-16">
-                    <div class="flex items-center">
-                        <a href="index.php" class="text-blue-600 hover:text-blue-800 mr-4">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                            </svg>
-                        </a>
-                        <h1 class="text-xl font-semibold text-gray-900">Import Data Excel</h1>
-                    </div>
-                    <a href="index.php" class="text-gray-600 hover:text-gray-900">
-                        Kembali ke Dashboard
+        <header class="h-16 flex items-center justify-between px-6 border-b border-border bg-card flex-shrink-0 sticky top-0 z-10">
+            <div class="max-w-7xl mx-auto w-full flex items-center justify-between">
+                <div class="flex items-center">
+                    <a href="index.php" class="text-primary hover:text-primary/80 mr-4 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                        </svg>
                     </a>
+                    <div class="flex items-center gap-3">
+                        <!-- Logo Icon -->
+                        <svg width="24" height="24" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-primary">
+                           <path fill-rule="evenodd" clip-rule="evenodd" d="M22.5 25C22.5 23.6193 23.6193 22.5 25 22.5H75C76.3807 22.5 77.5 23.6193 77.5 25V37.5H22.5V25ZM22.5 42.5H77.5V57.5H22.5V42.5ZM22.5 62.5H77.5V75C77.5 76.3807 76.3807 77.5 75 77.5H25C23.6193 77.5 22.5 76.3807 22.5 75V62.5Z" fill="currentColor"/>
+                        </svg>
+                        <h1 class="text-xl font-semibold text-foreground">Import Excel Data</h1>
+                    </div>
                 </div>
+                <a href="index.php" class="text-muted-foreground hover:text-foreground transition-colors">
+                    Back to Dashboard
+                </a>
             </div>
         </header>
 
-        <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <!-- Messages -->
-            <?php if ($message): ?>
-                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
-                    <?= htmlspecialchars($message) ?>
-                    <div class="mt-2">
-                        <a href="index.php" class="text-green-800 hover:text-green-900 underline">
-                            Lihat Data yang Diimpor
-                        </a>
-                    </div>
-                </div>
-            <?php endif; ?>
-            
-            <?php if ($error): ?>
-                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-                    <?= htmlspecialchars($error) ?>
-                </div>
-            <?php endif; ?>
-
+        <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <!-- Upload Form -->
-                <div class="bg-white shadow-sm rounded-lg border">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h2 class="text-lg font-medium text-gray-900">Upload File Excel/CSV</h2>
+                <div class="bg-card shadow-sm rounded-xl border border-border">
+                    <div class="px-6 py-4 border-b border-border">
+                        <h2 class="text-lg font-medium text-foreground">Upload Excel/CSV File</h2>
                     </div>
                     
                     <form method="POST" enctype="multipart/form-data" class="p-6">
                         <div class="space-y-6">
                             <div>
-                                <label for="excel_file" class="block text-sm font-medium text-gray-700 mb-2">
-                                    Pilih File Excel/CSV <span class="text-red-500">*</span>
+                                <label for="excel_file" class="block text-sm font-medium text-foreground mb-2">
+                                    Select Excel/CSV File <span class="text-red-500">*</span>
                                 </label>
-                                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                                <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-border border-dashed rounded-lg">
                                     <div class="space-y-1 text-center">
-                                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                        <svg class="mx-auto h-12 w-12 text-muted-foreground" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                                             <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                         </svg>
-                                        <div class="flex text-sm text-gray-600">
-                                            <label for="excel_file" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                        <div class="flex text-sm text-muted-foreground">
+                                            <label for="excel_file" class="relative cursor-pointer bg-background rounded-md font-medium text-primary hover:text-primary/80 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary">
                                                 <span>Upload file</span>
                                                 <input id="excel_file" name="excel_file" type="file" class="sr-only" accept=".xls,.xlsx,.csv" required>
                                             </label>
-                                            <p class="pl-1">atau drag and drop</p>
+                                            <p class="pl-1">or drag and drop</p>
                                         </div>
-                                        <p class="text-xs text-gray-500">Excel (.xlsx, .xls) atau CSV hingga 10MB</p>
+                                        <p class="text-xs text-muted-foreground">Excel (.xlsx, .xls) or CSV up to 10MB</p>
                                     </div>
                                 </div>
-                                <div id="file-info" class="mt-2 text-sm text-gray-600 hidden"></div>
+                                <div id="file-info" class="mt-2 text-sm text-muted-foreground hidden"></div>
                             </div>
 
-                            <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                 <div class="flex">
                                     <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
                                     </svg>
                                     <div class="ml-3">
-                                        <h3 class="text-sm font-medium text-blue-800">Format File yang Diharapkan</h3>
+                                        <h3 class="text-sm font-medium text-blue-800">Expected File Format</h3>
                                         <div class="mt-2 text-sm text-blue-700">
-                                            <p>Kolom yang dibutuhkan (urutan sesuai):</p>
+                                            <p>Required columns (in order):</p>
                                             <ol class="list-decimal list-inside mt-1">
-                                                <li>Nama</li>
+                                                <li>Name</li>
                                                 <li>Division</li>
-                                                <li>Status Headcount</li>
-                                                <li>Replace (opsional)</li>
-                                                <li>assign month (format: YYYY-MM-DD)</li>
+                                                <li>Headcount Status</li>
+                                                <li>Replacing (optional)</li>
+                                                <li>Assignment Date (format: YYYY-MM-DD)</li>
                                             </ol>
                                         </div>
                                     </div>
@@ -186,10 +129,10 @@ if ($_POST && isset($_FILES['excel_file'])) {
                             </div>
 
                             <div class="flex justify-end space-x-4">
-                                <a href="index.php" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                    Batal
+                                <a href="index.php" class="px-4 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-accent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
+                                    Cancel
                                 </a>
-                                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
                                     Import Data
                                 </button>
                             </div>
@@ -198,49 +141,49 @@ if ($_POST && isset($_FILES['excel_file'])) {
                 </div>
 
                 <!-- Instructions -->
-                <div class="bg-white shadow-sm rounded-lg border">
-                    <div class="px-6 py-4 border-b border-gray-200">
-                        <h2 class="text-lg font-medium text-gray-900">Instruksi Import</h2>
+                <div class="bg-card shadow-sm rounded-xl border border-border">
+                    <div class="px-6 py-4 border-b border-border">
+                        <h2 class="text-lg font-medium text-foreground">Import Instructions</h2>
                     </div>
                     
                     <div class="p-6 space-y-4">
                         <div class="space-y-2">
-                            <h3 class="font-medium text-gray-900">1. Format File</h3>
-                            <p class="text-sm text-gray-600">
-                                Upload file Excel (.xlsx, .xls) atau CSV dengan struktur kolom yang sesuai.
+                            <h3 class="font-medium text-foreground">1. File Format</h3>
+                            <p class="text-sm text-muted-foreground">
+                                Upload Excel (.xlsx, .xls) or CSV file with the correct column structure.
                             </p>
                         </div>
 
                         <div class="space-y-2">
-                            <h3 class="font-medium text-gray-900">2. Struktur Data</h3>
-                            <p class="text-sm text-gray-600">
-                                Pastikan baris pertama adalah header kolom, dan data dimulai dari baris kedua.
+                            <h3 class="font-medium text-foreground">2. Data Structure</h3>
+                            <p class="text-sm text-muted-foreground">
+                                Make sure the first row contains column headers, and data starts from the second row.
                             </p>
                         </div>
 
                         <div class="space-y-2">
-                            <h3 class="font-medium text-gray-900">3. Status Headcount</h3>
-                            <p class="text-sm text-gray-600">
-                                Nilai yang valid: "Replacement", "New Headcount", "New Request"
+                            <h3 class="font-medium text-foreground">3. Headcount Status</h3>
+                            <p class="text-sm text-muted-foreground">
+                                Valid values: "Replacement", "New Headcount", "New Request"
                             </p>
                         </div>
 
                         <div class="space-y-2">
-                            <h3 class="font-medium text-gray-900">4. Data Duplikat</h3>
-                            <p class="text-sm text-gray-600">
-                                Jika nama karyawan sudah ada, data akan diperbarui dengan informasi terbaru.
+                            <h3 class="font-medium text-foreground">4. Duplicate Data</h3>
+                            <p class="text-sm text-muted-foreground">
+                                If an employee name already exists, the data will be updated with the latest information.
                             </p>
                         </div>
 
-                        <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                             <div class="flex">
                                 <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                                 </svg>
                                 <div class="ml-3">
                                     <p class="text-sm text-yellow-800">
-                                        <strong>Peringatan:</strong> Pastikan data sudah benar sebelum import. 
-                                        Backup data lama jika diperlukan.
+                                        <strong>Warning:</strong> Make sure your data is correct before importing. 
+                                        Backup old data if necessary.
                                     </p>
                                 </div>
                             </div>
@@ -250,18 +193,23 @@ if ($_POST && isset($_FILES['excel_file'])) {
             </div>
 
             <!-- Sample Template -->
-            <div class="mt-8 bg-white shadow-sm rounded-lg border">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <h2 class="text-lg font-medium text-gray-900">Template CSV</h2>
+            <div class="mt-8 bg-card shadow-sm rounded-xl border border-border">
+                <div class="px-6 py-4 border-b border-border">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-lg font-medium text-foreground">CSV Template</h2>
+                        <a href="download_template_en.php" class="px-4 py-2 text-sm font-medium text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors">
+                            Download Template
+                        </a>
+                    </div>
                 </div>
                 
                 <div class="p-6">
-                    <p class="text-sm text-gray-600 mb-4">
-                        Contoh format file CSV yang dapat digunakan:
+                    <p class="text-sm text-muted-foreground mb-4">
+                        Example CSV file format that can be used:
                     </p>
                     
-                    <div class="bg-gray-50 rounded-md p-4 text-sm font-mono">
-                        Nama,Division,Status Headcount,Replace,assign month<br>
+                    <div class="bg-muted/50 rounded-lg p-4 text-sm font-mono">
+                        Name,Division,Headcount Status,Replacing,Assignment Date<br>
                         John Doe,IT,New Headcount,,2024-01-15<br>
                         Jane Smith,Finance,Replacement,Mike Johnson,2024-01-20<br>
                         Ahmad Satria,HR,New Request,,2024-02-01
@@ -283,7 +231,7 @@ if ($_POST && isset($_FILES['excel_file'])) {
                         <svg class="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                         </svg>
-                        File terpilih: <strong>${file.name}</strong> (${(file.size/1024/1024).toFixed(2)} MB)
+                        File selected: <strong>${file.name}</strong> (${(file.size/1024/1024).toFixed(2)} MB)
                     </div>
                 `;
                 fileInfo.classList.remove('hidden');

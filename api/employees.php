@@ -1,15 +1,7 @@
 <?php
 /**
- * Employee API Endpoint
+ * Employee API Endpoint - Fixed Path
  * File: api/employees.php
- * 
- * Simple REST API for employee data
- * Usage:
- * GET /api/employees.php - Get all employees
- * GET /api/employees.php?id=1 - Get specific employee
- * GET /api/employees.php?division=IT - Filter by division
- * GET /api/employees.php?status=Active - Filter by status
- * GET /api/employees.php?stats=true - Get statistics only
  */
 
 // Set content type to JSON
@@ -34,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
-// Include required files
-require_once '../models/Employee.php';
+// Include required files with correct path
+require_once dirname(__FILE__) . '/../models/Employee.php';
 
 try {
     $employee = new Employee();
@@ -48,7 +40,7 @@ try {
             'success' => true,
             'data' => $stats,
             'timestamp' => date('c')
-        ], JSON_PRETTY_PRINT);
+        ]);
         exit;
     }
     
@@ -62,7 +54,7 @@ try {
                 'success' => true,
                 'data' => $emp,
                 'timestamp' => date('c')
-            ], JSON_PRETTY_PRINT);
+            ]);
         } else {
             http_response_code(404);
             echo json_encode([
@@ -97,35 +89,19 @@ try {
         $filters['search'] = $_GET['search'];
     }
     
-    // Pagination
-    $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-    $limit = isset($_GET['limit']) ? min(100, max(1, intval($_GET['limit']))) : 50;
-    $offset = ($page - 1) * $limit;
-    
     // Get employees
     $employees = $employee->getAllEmployees($filters);
-    
-    // Apply pagination
-    $total = count($employees);
-    $employees = array_slice($employees, $offset, $limit);
     
     // Prepare response
     $response = [
         'success' => true,
         'data' => $employees,
-        'pagination' => [
-            'current_page' => $page,
-            'per_page' => $limit,
-            'total' => $total,
-            'total_pages' => ceil($total / $limit),
-            'has_next' => $page < ceil($total / $limit),
-            'has_prev' => $page > 1
-        ],
+        'total' => count($employees),
         'filters' => $filters,
         'timestamp' => date('c')
     ];
     
-    echo json_encode($response, JSON_PRETTY_PRINT);
+    echo json_encode($response);
     
 } catch (Exception $e) {
     http_response_code(500);
@@ -133,7 +109,7 @@ try {
     echo json_encode([
         'success' => false,
         'error' => 'Internal server error',
-        'message' => 'An error occurred while processing your request',
+        'message' => 'An error occurred while processing your request: ' . $e->getMessage(),
         'timestamp' => date('c')
     ]);
     
